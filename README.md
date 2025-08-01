@@ -1,292 +1,193 @@
-# DFS Paralelo com Separadores de Ciclo Direcionado
+# Sistema de Navegação Urbana - DFS Paralelo
 
-## 📖 Sobre o Projeto
+Um sistema avançado de busca de rotas urbanas implementado em C, utilizando algoritmo DFS (Depth-First Search) paralelo com múltiplas threads para encontrar rotas otimizadas entre pontos de interesse de uma cidade.
 
-Este projeto implementa o algoritmo de **Busca em Profundidade (DFS) Paralela** proposto por **Aggarwal, Anderson e Kao (1989)** no artigo "Parallel Depth-First Search in General Directed Graphs". A implementação segue fielmente a abordagem teórica baseada em **separadores de ciclo direcionado** para viabilizar DFS paralela em grafos dirigidos.
+## 🚀 Características Principais
 
-### 🎯 Objetivo
+- **Busca Paralela**: Utiliza até 8 threads simultâneas para exploração eficiente do grafo
+- **Múltiplos Critérios**: Otimização por tempo, distância, custo ou número de transferências
+- **Interface Interativa**: Menu intuitivo para diferentes tipos de consulta
+- **Grafo Realístico**: 20 pontos de interesse conectados por diferentes meios de transporte
+- **Análise Estatística**: Relatórios detalhados dos resultados encontrados
 
-Demonstrar como paralelizar a busca em profundidade (tradicionalmente sequencial) usando separadores de ciclo direcionado, mantendo todas as propriedades teóricas da **classe NC** (Nick's Class).
+## 🏙️ Pontos de Interesse
 
-## 🏛️ Fundamentação Teórica
+O sistema modela uma cidade com os seguintes locais:
 
-### Teorema Principal (Aggarwal, Anderson, Kao)
-> "Todo grafo dirigido possui um separador de ciclo direcionado que pode ser encontrado em tempo O(n + e) e divide o grafo em componentes de tamanho ≤ n/2"
+| ID | Local | ID | Local |
+|----|-------|-------|-------|
+| 0 | Estação Central | 10 | Banco Central |
+| 1 | Shopping Center | 11 | Correios |
+| 2 | Universidade | 12 | Aeroporto |
+| 3 | Hospital | 13 | Rodoviária |
+| 4 | Parque Central | 14 | Praia |
+| 5 | Museu | 15 | Estádio |
+| 6 | Biblioteca | 16 | Zoológico |
+| 7 | Teatro | 17 | Aquário |
+| 8 | Praça Principal | 18 | Centro Comercial |
+| 9 | Mercado Municipal | 19 | Terminal Metrô |
 
-### Teorema 2 - NC-Equivalência
-As seguintes tarefas são **NC-equivalentes**:
-1. Computar separadores de caminho direcionado
-2. Computar separadores de ciclo direcionado  
-3. Executar DFS em grafos direcionados
+## 🚌 Meios de Transporte
 
-### Complexidade Teórica
-- **Tempo**: `O(log⁵n × (T_MM(n) + log²n))`
-- **Processadores**: Polinomial em n
-- **Classe**: NC (tempo polilogarítmico)
+- **Metrô**: Rápido e com poucas transferências
+- **Ônibus**: Cobertura ampla da cidade
+- **Trem**: Conexões de longa distância
+- **Táxi**: Opção mais cara mas direta
 
-## 🏗️ Arquitetura da Implementação
-
-### Estruturas Principais
-
-```c
-// Caminho no separador com propriedades NC
-typedef struct {
-    int vertices[N];
-    int length;
-    int component_size;  // Garante divisão ≤ n/2
-    bool is_cycle;
-} NCPath;
-
-// Separador de ciclo NC-compliant
-typedef struct {
-    NCPath paths[N];
-    int num_paths;
-    int max_component_size;
-    bool is_valid_separator;
-} NCSeparator;
-
-// Árvore DFS com propriedades NC
-typedef struct {
-    int parent[N];
-    int preorder[N];
-    int postorder[N];
-    int tree_edges[N][N];
-    int back_edges[N][N];
-} NCDFSTree;
-```
-
-### Algoritmos Implementados
-
-#### 1. **REDUCE** - Redução de Caminhos
-- **Complexidade**: `O(log³n × (T_MM(n) + log²n))`
-- **Função**: Reduz número de caminhos pela metade em cada iteração
-- **Garantia**: Mantém propriedade de divisão balanceada
-
-#### 2. **JOIN_PATHS_TO_CYCLE_SEPARATOR** - União em Ciclos
-- **Complexidade**: `k-1` iterações NC
-- **Função**: Une caminhos em ciclos disjuntos
-- **Garantia**: Preserva propriedade SCC ≤ n/2
-
-#### 3. **Multiplicação de Matrizes Booleanas Paralela**
-- **Complexidade**: `T_MM(n) + O(log²n)`
-- **Função**: Operações fundamentais para algoritmos NC
-- **Implementação**: Processadores paralelos com sincronização
-
-## 🚀 Compilação e Execução
+## 🛠️ Compilação e Execução
 
 ### Pré-requisitos
-
-- **GCC** (GNU Compiler Collection)
-- **pthread** (POSIX Threads)
-- **Sistema Unix/Linux** (recomendado)
+- Compilador GCC com suporte a pthread
+- Sistema operacional Unix/Linux ou Windows com MinGW
 
 ### Compilação
-
 ```bash
-# Compilação básica
-gcc -o dfs_paralelo main.c -pthread -lm
-
-# Compilação com otimizações
-gcc -O2 -o dfs_paralelo main.c -pthread -lm -Wall -Wextra
-
-# Compilação para debug
-gcc -g -DDEBUG -o dfs_paralelo_debug main.c -pthread -lm
+gcc -o navegacao_urbana paste.c -lpthread -lm
 ```
 
-### Opções de Compilação
-
-| Flag | Descrição |
-|------|-----------|
-| `-pthread` | Habilita suporte a POSIX threads |
-| `-lm` | Vincula biblioteca matemática |
-| `-O2` | Otimizações de performance |
-| `-Wall -Wextra` | Avisos detalhados |
-| `-g` | Informações de debug |
-| `-DDEBUG` | Ativa modo debug verbose |
-
 ### Execução
-
 ```bash
-# Execução padrão
-./dfs_paralelo
+./navegacao_urbana
+```
 
-# Execução com saída detalhada
-./dfs_paralelo > resultado.txt 2>&1
+## 📋 Menu de Opções
 
-# Execução com análise de tempo
-time ./dfs_paralelo
+1. **Buscar rotas (Estação Central → Aeroporto)**: Busca padrão pré-configurada
+2. **Buscar rotas personalizadas**: Escolha origem e destino
+3. **Exibir por menor tempo**: Ordena resultados por tempo de viagem
+4. **Exibir por menor distância**: Ordena por distância percorrida
+5. **Exibir por menor custo**: Ordena por custo da viagem
+6. **Exibir por menos transferências**: Ordena por número de baldeações
+7. **Exibir estatísticas**: Análise comparativa dos resultados
+8. **Exibir mapa da cidade**: Visualiza todas as conexões disponíveis
 
-# Execução com Valgrind (detecção de vazamentos)
-valgrind --leak-check=full ./dfs_paralelo
+## 🧵 Implementação Paralela
+
+### Arquitetura de Threads
+- **Thread Principal**: Coordena a execução e interface
+- **Threads de Busca**: Cada thread explora diferentes caminhos iniciais
+- **Sincronização**: Mutex protege a lista global de resultados
+
+### Algoritmo DFS
+```c
+// Cada thread executa DFS independente
+void dfs_recursivo(int vertice_atual, int destino, ...)
+{
+    // Verifica se chegou ao destino
+    if (vertice_atual == destino) {
+        adicionar_caminho(&novo_caminho);  // Thread-safe
+        return;
+    }
+    
+    // Explora vizinhos recursivamente
+    for (int i = 0; i < num_arestas[vertice_atual]; i++) {
+        // Evita ciclos e continua busca
+        dfs_recursivo(proximo_vertice, ...);
+    }
+}
 ```
 
 ## 📊 Exemplo de Saída
 
 ```
-=== ALGORITMO DFS PARALELO NC TEÓRICO ===
-Implementação baseada em Aggarwal, Anderson e Kao (1989)
-Grafo com n=13 vértices, log n ≈ 4
+=== ROTAS ENCONTRADAS (ordenadas por: Menor Tempo) ===
 
-TEOREMA: Todo grafo dirigido possui separador de ciclo direcionado
-COMPLEXIDADE: O(log⁵n × (T_MM(n) + log²n)) com processadores polinomiais
+Rota 1:
+  Caminho: Estação Central -[trem]-> Aeroporto
+  Tempo total: 45 minutos
+  Distância total: 25 km
+  Custo total: R$ 15
+  Transferências: 1
 
-=== CONSTRUÇÃO DE SEPARADOR GARANTIDO ===
-Fase 1: Identificando ciclos fundamentais...
-Caminho/Ciclo 0: 0 1 2 3 4 5 6 7 8 9 10 11 12 (ciclo, componente=6)
-Caminho/Ciclo 1: 1 2 3 4 5 6 7 8 9 10 11 12 0 (ciclo, componente=6)
+Rota 2:
+  Caminho: Estação Central -[metrô]-> Rodoviária -[ônibus]-> Aeroporto
+  Tempo total: 50 minutos
+  Distância total: 27 km
+  Custo total: R$ 16
+  Transferências: 1
 
-=== ROTINA REDUCE NC ===
-REDUCE iteração 1: 6 → 3 caminhos
-REDUCE iteração 2: 3 → 2 caminhos
-REDUCE finalizado: 2 caminhos restantes
-
-=== ROTINA JOIN_PATHS_TO_CYCLE_SEPARATOR NC ===
-JOIN finalizado: 2 ciclos disjuntos criados
-
-=== VERIFICAÇÃO DE PROPRIEDADES NC ===
-✓ Separador construído: SIM
-✓ Componentes <= n/2: SIM (6 <= 6)
-✓ Tempo polilogarítmico: O(log⁵n) simulado
-✓ Processadores: 64 (polinomial)
-
-=== EXECUÇÃO DFS PARALELO NC ===
-Lançando 64 processadores NC...
-DFS NC concluído em 0.007 segundos
-
-=== CONCLUSÃO ===
-Implementação teórica NC concluída com sucesso!
-Todas as propriedades do artigo foram respeitadas.
+*** MELHOR ROTA RECOMENDADA ***
+Rota: Estação Central -> Aeroporto
+Detalhes: 45 min, 25 km, R$ 15, 1 transferências
 ```
 
-## ⚙️ Configuração e Personalização
+## 🔧 Configurações Técnicas
 
-### Parâmetros Configuráveis
-
+### Constantes do Sistema
 ```c
-#define N 13                    // Número de vértices do grafo
-#define MAX_PROCESSORS 64       // Número de processadores NC
-#define LOG_N 4                // ceil(log2(N))
-#define MAX_ITERATIONS 1000     // Limite de segurança
+#define MAX_VERTICES 20        // Máximo de pontos de interesse
+#define MAX_THREADS 8          // Número de threads paralelas
+#define MAX_PATHS 100         // Máximo de rotas armazenadas
+#define MAX_PATH_LENGTH 50    // Comprimento máximo de uma rota
 ```
 
-### Modificando o Grafo
+### Estruturas de Dados
+- **Aresta**: Representa conexão entre dois pontos
+- **GrafoCidade**: Matriz de adjacência com pesos múltiplos
+- **Caminho**: Armazena uma rota completa com métricas
+- **ResultadoBusca**: Lista thread-safe de todos os caminhos
 
-Para usar um grafo diferente, modifique a matriz de adjacência:
+## 📈 Análise de Desempenho
 
+O sistema fornece métricas detalhadas:
+- Tempo de execução da busca paralela
+- Número de threads utilizadas
+- Quantidade total de rotas encontradas
+- Estatísticas comparativas (min, max, média) para todos os critérios
+
+## 🔒 Sincronização e Thread Safety
+
+### Mecanismos Utilizados
+- **pthread_mutex_t**: Protege acesso à lista global de resultados
+- **Verificação de Finalização**: Coordena término das threads
+- **Detecção de Ciclos**: Evita loops infinitos na busca
+
+### Exemplo de Sincronização
 ```c
-int matriz[N][N] = {
-    {0,3,4,0,0,0,0,0,0,0,0,0,0},  // Vértice 0
-    {0,0,5,0,0,0,0,0,0,0,0,0,0},  // Vértice 1
-    // ... adicione suas arestas aqui
-};
-```
-
-### Habilitando Debug Verbose
-
-```c
-#define DEBUG_VERBOSE 1  // Adicione no início do arquivo
-```
-
-## 🔧 Solução de Problemas
-
-### Problemas Comuns
-
-#### 1. **Erro de Compilação: pthread não encontrado**
-```bash
-# Ubuntu/Debian
-sudo apt-get install build-essential
-
-# CentOS/RHEL
-sudo yum install gcc pthread-devel
-```
-
-#### 2. **Exceção de Ponto Flutuante**
-- **Causa**: Overflow em cálculos ou divisão por zero
-- **Solução**: Verifique os valores de `N`, `MAX_PROCESSORS` e limites
-
-#### 3. **Deadlock em Threads**
-- **Causa**: Problemas de sincronização
-- **Solução**: A implementação atual remove barreiras problemáticas
-
-#### 4. **Performance Baixa**
-```bash
-# Compile com otimizações
-gcc -O3 -march=native -o dfs_paralelo main.c -pthread -lm
-```
-
-### Debug e Profiling
-
-```bash
-# GDB para debug
-gdb ./dfs_paralelo
-(gdb) run
-(gdb) bt  # backtrace em caso de crash
-
-# Análise de performance
-perf record ./dfs_paralelo
-perf report
-
-# Análise de threads
-strace -f ./dfs_paralelo
-```
-
-## 📚 Estrutura do Código
-
-```
-projeto/
-├── main.c                 # Implementação principal
-├── README.md             # Este arquivo
-├── Makefile              # Scripts de compilação
-├── docs/
-│   ├── artigo_original.pdf
-│   └── analise_critica.pdf
-└── testes/
-    ├── teste_pequeno.c
-    ├── teste_grande.c
-    └── benchmark.c
-```
-
-## 🧪 Testes e Validação
-
-### Executar Bateria de Testes
-
-```bash
-# Teste com grafo pequeno (n=5)
-gcc -DN=5 -o teste_pequeno main.c -pthread -lm
-./teste_pequeno
-
-# Teste com grafo médio (n=20)
-gcc -DN=20 -o teste_medio main.c -pthread -lm
-./teste_medio
-
-# Benchmark de performance
-gcc -O3 -DBENCHMARK -o benchmark main.c -pthread -lm
-./benchmark
-```
-
-### Validação das Propriedades NC
-
-O programa automaticamente verifica:
-- ✅ Existência de separador (teorema garantido)
-- ✅ Divisão balanceada (componentes ≤ n/2)
-- ✅ Complexidade polilogarítmica
-- ✅ Número polinomial de processadores
-
-## 📖 Referências e Bibliografia
-
-### Artigo Original
-```bibtex
-@inproceedings{aggarwal1989parallel,
-  title={Parallel depth-first search in general directed graphs},
-  author={Aggarwal, Alok and Anderson, Richard J and Kao, Ming-Yang},
-  booktitle={Proceedings of the twenty-first annual ACM symposium on Theory of computing},
-  pages={297--308},
-  year={1989},
-  organization={ACM}
+void adicionar_caminho(Caminho* caminho) {
+    pthread_mutex_lock(&resultado_global.mutex);
+    // Adiciona caminho de forma thread-safe
+    resultado_global.caminhos[resultado_global.num_caminhos++] = *caminho;
+    pthread_mutex_unlock(&resultado_global.mutex);
 }
 ```
 
-### Bibliografia Complementar
-- Cormen, T. H., et al. "Introduction to Algorithms" (Capítulo sobre DFS)
-- Reif, J. H. "Depth-first search is inherently sequential"
-- Cook, S. A. "A taxonomy of problems with fast parallel algorithms"
+## 🎯 Casos de Uso
+
+### Planejamento de Viagens
+- Encontrar a rota mais rápida para o aeroporto
+- Planejar passeios turísticos econômicos
+- Otimizar deslocamentos urbanos diários
+
+### Análise de Mobilidade
+- Comparar diferentes meios de transporte
+- Identificar gargalos no sistema de transporte
+- Avaliar impacto de transferências na viagem
+
+## 🚀 Extensões Possíveis
+
+- **Algoritmos Adicionais**: Implementar Dijkstra, A* ou Floyd-Warshall
+- **Dados Dinâmicos**: Integrar APIs de trânsito em tempo real
+- **Interface Gráfica**: Visualização do mapa e rotas
+- **Persistência**: Salvar/carregar configurações e histórico
+- **Otimização Multi-objetivo**: Combinar múltiplos critérios simultaneamente
+
+## 📝 Notas Técnicas
+
+### Complexidade
+- **Temporal**: O(V^P) onde V é o número de vértices e P a profundidade máxima
+- **Espacial**: O(P * T) onde T é o número de threads
+
+### Limitações
+- Profundidade de busca limitada para evitar explosão combinatorial
+- Número máximo de caminhos armazenados para controle de memória
+- Grafo estático (não considera mudanças em tempo real)
+
+## 👥 Contribuição
+
+Este sistema demonstra conceitos avançados de:
+- Programação concorrente em C
+- Algoritmos de busca em grafos
+- Sincronização de threads
+- Estruturas de dados complexas
+- Otimização multi-critério
