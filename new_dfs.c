@@ -2,47 +2,46 @@
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
+#include <time.h>
 
 #define MAX_VERTICES 20
 #define MAX_NOME 30
-#define MAX_THREADS 20
+#define MAX_THREADS 10
 #define MAX_CAMINHO 100
 #define MAX_CAMINHOS_POR_THREAD 100
 
-// Estrutura para uma aresta
 typedef struct {
     int destino;
     int tempo;
 } Aresta;
 
-// Estrutura para um grafo
 typedef struct {
     int num_vertices;
     int num_arestas[MAX_VERTICES];
     Aresta* lista_arestas[MAX_VERTICES];
 } Grafo;
 
-// Estrutura para armazenar um caminho
 typedef struct {
     int vertices[MAX_CAMINHO];
     int tamanho;
     int tempo_total;
 } Caminho;
 
-// Caminhos por thread
 typedef struct {
     Caminho caminhos[MAX_CAMINHOS_POR_THREAD];
     int num_caminhos;
 } CaminhosThread;
 
 CaminhosThread caminhos_por_thread[MAX_THREADS];
+struct timespec tempos_por_thread[MAX_THREADS][2];
 
-// Estrutura de argumentos para a thread
 typedef struct {
     int origem;
     int destino;
-    int inicio_thread;
+    int* vizinhos;
+    int num_vizinhos;
     int thread_id;
+    struct timespec inicio, fim;
 } ThreadArgs;
 
 // Lista de nomes dos locais
@@ -214,102 +213,169 @@ void dfs(int atual, int destino, int visitado[], Caminho* caminho_atual, int thr
 
 void* thread_dfs(void* arg) {
     ThreadArgs* args = (ThreadArgs*)arg;
-    int visitado[MAX_VERTICES] = {0};
+    clock_gettime(CLOCK_MONOTONIC, &tempos_por_thread[args->thread_id][0]);
+    for (int i = 0; i < args->num_vizinhos; i++) {
+        int inicio = args->vizinhos[i];
 
-    Caminho caminho_atual;
-    caminho_atual.tamanho = 0;
-    caminho_atual.tempo_total = 0;
+        int visitado[MAX_VERTICES] = {0};
+        Caminho caminho_atual;
+        caminho_atual.tamanho = 0;
+        caminho_atual.tempo_total = 0;
 
-    caminho_atual.vertices[caminho_atual.tamanho++] = args->origem;
-    caminho_atual.vertices[caminho_atual.tamanho++] = args->inicio_thread;
-    visitado[args->origem] = 1;
-    visitado[args->inicio_thread] = 1;
+        caminho_atual.vertices[caminho_atual.tamanho++] = args->origem;
+        caminho_atual.vertices[caminho_atual.tamanho++] = inicio;
 
-    dfs(args->inicio_thread, args->destino, visitado, &caminho_atual, args->thread_id);
+        visitado[args->origem] = 1;
+        visitado[inicio] = 1;
 
+        Aresta* arestas = cidade.lista_arestas[args->origem];
+        for (int j = 0; j < cidade.num_arestas[args->origem]; j++) {
+            if (arestas[j].destino == inicio) {
+                caminho_atual.tempo_total += arestas[j].tempo;
+                break;
+            }
+        }
+
+        dfs(inicio, args->destino, visitado, &caminho_atual, args->thread_id);
+    }  
+
+    clock_gettime(CLOCK_MONOTONIC, &tempos_por_thread[args->thread_id][1]);
     pthread_exit(NULL);
 }
 
 int main() {
     inicializar_grafo();
 
-    int origem = obter_indice("Estacao Central");
-    int destino = obter_indice("Aeroporto");
+    const char* inicio_nome = "Estacao Central";
+    const char* destino_nome = "Aeroporto";
 
-    int thread_count = cidade.num_arestas[origem];
-    pthread_t threads[MAX_THREADS];
-    ThreadArgs args[MAX_THREADS];
+    int inicio = obter_indice((char*)inicio_nome);
+    int destino = obter_indice((char*)destino_nome);
 
-    printf("Buscando caminhos de '%s' para '%s' com paralelismo particionado...\n", NOMES[origem], NOMES[destino]);
-
-    for (int i = 0; i < thread_count; i++) {
-        args[i].origem = origem;
-        args[i].destino = destino;
-        args[i].inicio_thread = cidade.lista_arestas[origem][i].destino;
-        args[i].thread_id = i;
-        printf("Criando thread %d para vizinho: %s\n", i, NOMES[args[i].inicio_thread]);
-        pthread_create(&threads[i], NULL, thread_dfs, &args[i]);
+    if (inicio == -1 || destino == -1) {
+        printf("Origem ou destino inválido.\n");
+        return 1;
     }
 
-    for (int i = 0; i < thread_count; i++) {
-        pthread_join(threads[i], NULL);
+    int thread_counts[] = {1, 2, 3, 4};
+    int num_execucoes = sizeof(thread_counts) / sizeof(thread_counts[0]);
+
+    FILE* fp = fopen("benchmark.csv", "w");
+    if (fp == NULL) {
+        perror("Erro ao abrir benchmark.csv");
+        return 1;
     }
+    fprintf(fp, "Threads,TempoTotal_ms,CaminhosTotal\n");
 
-    printf("\n================ CAMINHOS ENCONTRADOS POR THREAD ================\n");
+    for (int exec = 0; exec < num_execucoes; exec++) {
+        int num_threads = thread_counts[exec];
 
-for (int i = 0; i < thread_count; i++) {
-    if (caminhos_por_thread[i].num_caminhos > 0) {
-        printf("\n🔹 Thread %d (vizinho: %s):\n", i, NOMES[caminhos_por_thread[i].caminhos[0].vertices[1]]);
-    } else {
-        printf("\n🔹 Thread %d:\n", i);
-    }
-
-    if (caminhos_por_thread[i].num_caminhos == 0) {
-        printf("   Nenhum caminho encontrado.\n");
-        continue;
-    }
-
-    for (int j = 0; j < caminhos_por_thread[i].num_caminhos; j++) {
-        Caminho c = caminhos_por_thread[i].caminhos[j];
-        printf("   Caminho %d: ", j + 1);
-        for (int k = 0; k < c.tamanho; k++) {
-            printf("%s", NOMES[c.vertices[k]]);
-            if (k < c.tamanho - 1) printf(" -> ");
-        }
-        printf("   | Tempo total: %d min\n", c.tempo_total);
-    }
-}
-
-    printf("\n================ MELHOR CAMINHO POR THREAD =====================\n");
-
-    for (int i = 0; i < thread_count; i++) {
-        printf("\n🔹 Thread %d (vizinho: %s)\n", i, NOMES[args[i].inicio_thread]);
-
-        if (caminhos_por_thread[i].num_caminhos == 0) {
-            printf("   Nenhum caminho encontrado.\n");
-            continue;
+        int total_vizinhos = cidade.num_arestas[inicio];
+        int* vizinhos = malloc(sizeof(int) * total_vizinhos);
+        for (int i = 0; i < total_vizinhos; i++) {
+            vizinhos[i] = cidade.lista_arestas[inicio][i].destino;
         }
 
-        int melhor_tempo = __INT_MAX__;
-        int indice_melhor = -1;
+        pthread_t threads[num_threads];
+        ThreadArgs args[num_threads];
+        int vizinhos_por_thread = (total_vizinhos + num_threads - 1) / num_threads;
 
-        for (int j = 0; j < caminhos_por_thread[i].num_caminhos; j++) {
-            if (caminhos_por_thread[i].caminhos[j].tempo_total < melhor_tempo) {
-                melhor_tempo = caminhos_por_thread[i].caminhos[j].tempo_total;
-                indice_melhor = j;
+        for (int i = 0; i < MAX_THREADS; i++) {
+            caminhos_por_thread[i].num_caminhos = 0;
+        }
+
+        struct timespec inicio_tempo, fim_tempo;
+        clock_gettime(CLOCK_MONOTONIC, &inicio_tempo);
+
+        for (int i = 0; i < num_threads; i++) {
+            int start = i * vizinhos_por_thread;
+            int end = (i + 1) * vizinhos_por_thread;
+            if (end > total_vizinhos) end = total_vizinhos;
+
+            args[i].origem = inicio;
+            args[i].destino = destino;
+            args[i].vizinhos = &vizinhos[start];
+            args[i].num_vizinhos = end - start;
+            args[i].thread_id = i;
+
+            pthread_create(&threads[i], NULL, thread_dfs, &args[i]);
+        }
+
+        for (int i = 0; i < num_threads; i++) {
+            pthread_join(threads[i], NULL);
+        }
+
+        printf("\n=========== TEMPO INDIVIDUAL DE EXECUÇÃO POR THREAD ===========\n");
+        for (int i = 0; i < num_threads; i++) {
+            double tempo_ms = (tempos_por_thread[i][1].tv_sec - tempos_por_thread[i][0].tv_sec) * 1000.0 +
+                            (tempos_por_thread[i][1].tv_nsec - tempos_por_thread[i][0].tv_nsec) / 1.0e6;
+            printf("🧵 Thread %d levou %.2f ms de CPU\n", i, tempo_ms);
+        }
+
+        clock_gettime(CLOCK_MONOTONIC, &fim_tempo);
+        double tempo_total_ms = (fim_tempo.tv_sec - inicio_tempo.tv_sec) * 1000.0 +
+                                (fim_tempo.tv_nsec - inicio_tempo.tv_nsec) / 1.0e6;
+
+        int total_caminhos = 0;
+        for (int i = 0; i < num_threads; i++) {
+            total_caminhos += caminhos_por_thread[i].num_caminhos;
+        }
+
+        printf("\n================ CAMINHOS ENCONTRADOS POR THREAD ================\n");
+
+        for (int i = 0; i < num_threads; i++) {
+            printf("\n🔹 Thread %d:\n", i);
+
+            if (caminhos_por_thread[i].num_caminhos == 0) {
+                printf("   Nenhum caminho encontrado.\n");
+                continue;
+            }
+
+            for (int j = 0; j < caminhos_por_thread[i].num_caminhos; j++) {
+                Caminho c = caminhos_por_thread[i].caminhos[j];
+                printf("   Caminho %d: ", j + 1);
+                for (int k = 0; k < c.tamanho; k++) {
+                    printf("%s", NOMES[c.vertices[k]]);
+                    if (k < c.tamanho - 1) printf(" -> ");
+                }
+                printf("   | Tempo total: %d min\n", c.tempo_total);
             }
         }
 
-        Caminho melhor = caminhos_por_thread[i].caminhos[indice_melhor];
-        printf("   ");
-        for (int k = 0; k < melhor.tamanho; k++) {
-            printf("%s", NOMES[melhor.vertices[k]]);
-            if (k < melhor.tamanho - 1) printf(" -> ");
+        printf("\n================ MELHOR CAMINHO POR THREAD =====================\n");
+
+        for (int i = 0; i < num_threads; i++) {
+            printf("\n🔹 Thread %d\n", i);
+
+            if (caminhos_por_thread[i].num_caminhos == 0) {
+                printf("   Nenhum caminho encontrado.\n");
+                continue;
+            }
+
+            int melhor_tempo = __INT_MAX__;
+            int indice_melhor = -1;
+
+            for (int j = 0; j < caminhos_por_thread[i].num_caminhos; j++) {
+                if (caminhos_por_thread[i].caminhos[j].tempo_total < melhor_tempo) {
+                    melhor_tempo = caminhos_por_thread[i].caminhos[j].tempo_total;
+                    indice_melhor = j;
+                }
+            }
+
+            Caminho melhor = caminhos_por_thread[i].caminhos[indice_melhor];
+            printf("   ");
+            for (int k = 0; k < melhor.tamanho; k++) {
+                printf("%s", NOMES[melhor.vertices[k]]);
+                if (k < melhor.tamanho - 1) printf(" -> ");
+            }
+            printf("   | Tempo total: %d min\n", melhor.tempo_total);
         }
-        printf("   | Tempo total: %d min\n", melhor.tempo_total);
+
+        fprintf(fp, "%d,%.2f,%d\n", num_threads, tempo_total_ms, total_caminhos);
+        free(vizinhos);
     }
 
-
-
+    fclose(fp);
     return 0;
 }
+
